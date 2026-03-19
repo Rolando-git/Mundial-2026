@@ -77,14 +77,7 @@ def simulate_knockout_match(a: Team, b: Team) -> Team:
     return random.choice([a, b])
 
 
-def simulate_one_tournament(all_teams: list) -> Team:
-    teams = all_teams[:]
-    random.shuffle(teams)
-
-    groups = [[] for _ in range(12)]
-    for i in range(48):
-        groups[i // 4].append(teams[i])
-
+def simulate_one_tournament(groups) -> Team:
     qualified = []
     third_places = []
 
@@ -110,7 +103,6 @@ def simulate_one_tournament(all_teams: list) -> Team:
 
     return current_round[0]
 
-
 NAME_MAPPING = {
     "Argentina": "Argentina",
     "France": "Francia",
@@ -121,24 +113,24 @@ NAME_MAPPING = {
     "Netherlands": "Países Bajos",
     "Germany": "Alemania",
     "Belgium": "Bélgica",
-    "Italy": "Italia",
+    "Italy": "Italia",           
     "Croatia": "Croacia",
     "Uruguay": "Uruguay",
     "Colombia": "Colombia",
     "Morocco": "Marruecos",
     "Senegal": "Senegal",
     "Switzerland": "Suiza",
-    "United States": "Estados Unidos",
+    "USA": "Estados Unidos",
     "Mexico": "México",
     "Norway": "Noruega",
-    "Denmark": "Dinamarca",
-    "Poland": "Polonia",
+    "Denmark": "Dinamarca",     
+    "Poland": "Polonia",        
     "Japan": "Japón",
     "Korea Republic": "Corea del Sur",
     "Australia": "Australia",
     "IR Iran": "Irán",
     "Ecuador": "Ecuador",
-    "Türkiye": "Turquía",
+    "Türkiye": "Turquía",        
     "Austria": "Austria",
     "Uzbekistan": "Uzbekistán",
     "Côte d'Ivoire": "Côte d'Ivoire",
@@ -146,13 +138,22 @@ NAME_MAPPING = {
     "Qatar": "Qatar",
     "Saudi Arabia": "Arabia Saudita",
     "Jordan": "Jordania",
-    "Iraq": "Irak",
+    "Iraq": "Irak",             
     "New Zealand": "Nueva Zelanda",
     "Haiti": "Haití",
     "Curaçao": "Curazao",
-    "DR Congo": "RD Congo",
+    "Congo DR": "RD Congo",    
+   
+    "Scotland": "Escocia",
+    "Paraguay": "Paraguay",
+    "Tunisia": "Túnez",
+    "Egypt": "Egipto",
+    "Cape Verde": "Cabo Verde",
+    "Algeria": "Argelia",
+    "Ghana": "Ghana",
+    "Panama": "Panamá",
+    "South Africa": "Sudáfrica", 
 }
-
 
 def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
     teams_dict = {}
@@ -204,13 +205,67 @@ def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
 
     return teams
 
+def load_groups_from_csv(path, teams):
+    team_dict = {t.name: t for t in teams}
+    groups_dict = {}
+
+    with open(path, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            g = row['group']
+            name = row['team']
+
+            if g not in groups_dict:
+                groups_dict[g] = []
+
+            if name in team_dict:
+                groups_dict[g].append(team_dict[name])
+            else:
+                print(f" No encontrado: {name}")
+
+    return list(groups_dict.values())
+
+def run_simulation(groups):
+    champion = simulate_one_tournament(groups)
+    return champion.name
+
+from multiprocessing import Pool, cpu_count
 
 def main():
+    global GLOBAL_GROUPS
+
     teams = load_teams_from_fifa_csv("fifa_ranking.csv")
+    print(f"Equipos cargados: {len(teams)}")
 
-    if len(teams) != 48:
-        print(f"Se cargaron {len(teams)} equipos")
+    groups = load_groups_from_csv("groups.csv", teams)
+    GLOBAL_GROUPS = groups 
 
+    print("\nGrupos cargados correctamente:")
+    for i, g in enumerate(groups):
+        print(f"Grupo {chr(65+i)}:", [t.name for t in g])
 
+    simulations = 100000
+
+    print("\nEjecutando simulacion\n")
+
+    with Pool(cpu_count()) as p:
+        results = p.map(run_simulation, [groups] * simulations)
+
+    # contar resultados
+    winners = {}
+    for name in results:
+        winners[name] = winners.get(name, 0) + 1
+
+    print("\nResultados:\n")
+
+    sorted_results = sorted(
+        winners.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )
+
+    for team, wins in sorted_results:
+        probability = (wins / simulations) * 100
+        print(f"{team:<20} {wins:>6} títulos   {probability:>6.2f}%")
 if __name__ == "__main__":
     main()
