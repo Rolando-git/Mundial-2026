@@ -76,6 +76,21 @@ def simulate_knockout_match(a: Team, b: Team) -> Team:
         return a if res.goals_a > res.goals_b else b
     return random.choice([a, b])
 
+#Simulacion de Mejores Terceros
+
+    def get_best_third_places(groups: list, n: int = 8) -> list[Team]:
+        third_places = []
+ 
+    for group in groups:
+        table = simulate_group(group)
+        third_places.append(table[2])  # el tercero de cada grupo
+ 
+    # Ordenar por criterios FIFA: puntos, diferencia de goles, goles a favor
+    third_places.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
+ 
+    # Devolver solo los N mejores
+    return [s.team for s in third_places[:n]]
+
 
 def simulate_one_tournament(groups) -> Team:
     qualified = []
@@ -243,6 +258,19 @@ def main():
     print("\nGrupos cargados correctamente:")
     for i, g in enumerate(groups):
         print(f"Grupo {chr(65+i)}:", [t.name for t in g])
+
+    print("\n Ejemplo de mejores terceros:")
+    sample_thirds = []
+    for group in groups:
+        table = simulate_group(group)
+        sample_thirds.append(table[2])
+    sample_thirds.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
+ 
+    print(f"  {'Equipo':<20} {'Pts':>4}  {'DG':>4}  {'GF':>4}")
+    print(f"  {'-'*38}") #38 impresiones de la misma linea 
+    for i, s in enumerate(sample_thirds):
+        marker = "CLASIFICA" if i < 8 else " elimina"
+        print(f"  {s.team.name:<20} {s.points:>4}  {s.goal_diff:>+4}  {s.goals_for:>4}   {marker}")
 
     simulations = 100000
 
