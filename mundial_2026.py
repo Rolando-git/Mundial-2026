@@ -3,6 +3,9 @@ import math
 from collections import defaultdict
 import csv
 from datetime import datetime
+import json
+from tkinter import ttk
+import tkinter as tk
 
 
 class Team:
@@ -246,7 +249,7 @@ def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
         fifa_name = data['name_fifa']
         our_name = NAME_MAPPING.get(fifa_name, fifa_name)
 
-        strength = max(800, 2200 - (data['rank'] * 15))
+        strength = max(800, 2000 - (data['rank'] * 15))
 
         teams.append(Team(our_name, strength))
 
@@ -280,6 +283,129 @@ def run_simulation(groups):
 
 from multiprocessing import Pool, cpu_count
 
+def gui(output):
+    simulations = output["simulations"]
+
+    # unificar los tres rankings en un dict por equipo
+    equipos = {}
+
+    for entry in output.get("champions", []):
+        name = entry["team"]
+        if name not in equipos:
+            equipos[name] = {"titulos": 0, "subcampeon": 0, "tercero": 0}
+        equipos[name]["titulos"] = entry["wins"]
+
+    for entry in output.get("runners_up", []):
+        name = entry["team"]
+        if name not in equipos:
+            equipos[name] = {"titulos": 0, "subcampeon": 0, "tercero": 0}
+        equipos[name]["subcampeon"] = entry["wins"]
+
+    for entry in output.get("third_places", []):
+        name = entry["team"]
+        if name not in equipos:
+            equipos[name] = {"titulos": 0, "subcampeon": 0, "tercero": 0}
+        equipos[name]["tercero"] = entry["wins"]
+
+    goles_dict = {
+    entry["team"]: entry["goals"]
+    for entry in output.get("total_goals", [])
+}
+    
+
+    ordenados = sorted(
+        equipos.items(),
+        key=lambda x: x[1]["titulos"],
+        reverse=True
+    )
+
+    # ventana
+    root = tk.Tk()
+    root.title("Simulación del Mundial — Resultados")
+    root.configure(bg="#f0f0f0")
+    root.geometry("820x500")
+    root.resizable(True, True)
+
+    # header
+    header = tk.Frame(root, bg="#1a1a2e", pady=14)
+    header.pack(fill="x")
+    tk.Label(
+        header,
+        text="Simulación del Mundial",
+        font=("Arial", 18, "bold"),
+        fg="white", bg="#1a1a2e"
+    ).pack()
+    tk.Label(
+        header,
+        text=f"{simulations:,} simulaciones",
+        font=("Arial", 10),
+        fg="#aab", bg="#1a1a2e"
+    ).pack()
+
+    # contenedor de tabla + scrollbar
+    container = tk.Frame(root, bg="#f5f5f5")
+    container.pack(fill="both", expand=True, padx=16, pady=16)
+
+    cols = ("pos", "equipo", "titulos", "pct_campeon",
+            "subcampeon", "pct_sub", "tercero", "pct_ter", "goles")
+
+    tree = ttk.Treeview(container, columns=cols, show="headings", height=20)
+
+    encabezados = {
+        "pos":         ("#",             50),
+        "equipo":      ("Selección",    160),
+        "titulos":     ("Títulos",       80),
+        "pct_campeon": ("% Campeón",    100),
+        "subcampeon":  ("Subcampeón",    90),
+        "pct_sub":     ("% Subcampeón", 110),
+        "tercero":     ("3er lugar",     90),
+        "pct_ter":     ("% 3er lugar",  110),
+         "goles":       ("Goles totales", 110),
+    }
+
+    for col, (texto, ancho) in encabezados.items():
+        tree.heading(col, text=texto)
+        tree.column(col, width=ancho, anchor="center")
+
+    # colores de fila
+    tree.tag_configure("oro",    background="#F4C012")
+    tree.tag_configure("plata",  background="#A7A132")
+    tree.tag_configure("bronce", background="#C46C19")
+    tree.tag_configure("par",    background="#ffffff")
+    tree.tag_configure("impar",  background="#f0f4ff")
+
+    for i, (nombre, vals) in enumerate(ordenados, start=1):
+        pct_c = vals["titulos"]    / simulations * 100
+        pct_s = vals["subcampeon"] / simulations * 100
+        pct_t = vals["tercero"]    / simulations * 100
+
+        goles     = goles_dict.get(nombre, 0)
+
+        if   i == 1: tag = "oro"
+        elif i == 2: tag = "plata"
+        elif i == 3: tag = "bronce"
+        elif i % 2 == 0: tag = "par"
+        else:            tag = "impar"
+
+        tree.insert("", "end", tags=(tag,), values=(
+            f"{i}°",
+            nombre,
+            f"{vals['titulos']:,}",
+            f"{pct_c:.2f}%",
+            f"{vals['subcampeon']:,}",
+            f"{pct_s:.2f}%",
+            f"{vals['tercero']:,}",
+            f"{pct_t:.2f}%",
+            f"{goles:,}", 
+        ))
+
+    scroll = ttk.Scrollbar(container, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=scroll.set)
+    tree.pack(side="left", fill="both", expand=True)
+    scroll.pack(side="right", fill="y")
+
+
+    root.mainloop()
 
 def main():
     global GLOBAL_GROUPS
@@ -337,7 +463,7 @@ def main():
         reverse=True
     )
 
-    for team, g in sorted_goals[:20]:
+    for team, g in sorted_goals:
         print(f"{team:<20} {g}")
 
 
@@ -360,6 +486,28 @@ def main():
         # Mostramos el nombre, la cantidad de veces y el porcentaje
         print(f"{team:<20} {counts:>6} veces    {probability:>6.2f}%")
 
+    #generamos un entorno grafico con los resultados para los 25 mejores equipos
+
+    top_n = 25
+    output = {
+        "simulations": simulations,
+        "champions": [
+            {"team": t, "wins": w} for t, w in sorted_results[:top_n]
+        ],
+        "runners_up": [
+            {"team": t, "wins": w} for t, w in sorted_runners_up[:top_n]
+        ],
+        "third_places": [
+            {"team": t, "wins": w} for t, w in sorted_third_places[:top_n]
+        ],
+         "total_goals": [                                          
+        {"team": t, "goals": g} for t, g in sorted_goals[:top_n]
+    ],
+    }
+
+    gui(output)
+
+    
 
 if __name__ == "__main__":
     main()
