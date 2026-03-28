@@ -52,6 +52,7 @@ def simulate_match(a: Team, b: Team, goals_dict=None) -> MatchResult:
 
     return MatchResult(goals_a, goals_b)
 
+
 def simulate_group(group: list, goals_dict=None):
     standings = [GroupStanding(t) for t in group]
 
@@ -76,15 +77,18 @@ def simulate_group(group: list, goals_dict=None):
     standings.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
     return standings
 
+
 def simulate_knockout_match(a: Team, b: Team, goals_dict=None) -> Team:
     res = simulate_match(a, b, goals_dict)
 
     if res.goals_a != res.goals_b:
         return a if res.goals_a > res.goals_b else b
-    #penales
+    # penales
     prob_a = a.strength / (a.strength + b.strength)
     return a if random.random() < prob_a else b
-#Simulacion de Mejores Terceros
+    # Simulacion de Mejores Terceros
+   
+   
 def get_best_third_places(groups: list, n: int = 8):
     third_places = []
 
@@ -95,6 +99,7 @@ def get_best_third_places(groups: list, n: int = 8):
     third_places.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
 
     return [s.team for s in third_places[:n]]
+
 
 def simulate_one_tournament(groups, goals_dict=None):
     group_tables = []
@@ -113,7 +118,7 @@ def simulate_one_tournament(groups, goals_dict=None):
     round_of_32 = []
 
     # cruces de grupos
-    pairs = [(0,1),(2,3),(4,5),(6,7),(8,9),(10,11)]
+    pairs = [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9), (10, 11)]
 
     for a, b in pairs:
         groupA = group_tables[a]
@@ -147,6 +152,7 @@ def simulate_one_tournament(groups, goals_dict=None):
         current_round = next_round
 
     return current_round[0]
+
 
 NAME_MAPPING = {
     "Argentina": "Argentina",
@@ -200,6 +206,7 @@ NAME_MAPPING = {
     "South Africa": "Sudáfrica", 
 }
 
+
 def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
     teams_dict = {}
     latest_date = None
@@ -248,7 +255,18 @@ def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
 
         teams.append(Team(our_name, strength))
 
+    print(f"Equipos cargados desde CSV: {len(teams)}")
+
+    if len(teams) < 48:
+        print(f"⚠️  ADVERTENCIA: Solo se cargaron {len(teams)} equipos. Se esperaban 48.")
+    elif len(teams) > 48:
+        print(f"ℹ️  Se cargaron {len(teams)} equipos. Se usarán los primeros 48.")
+        teams = teams[:48]
+    else:
+        print("✅ Se cargaron correctamente los 48 equipos.")
+
     return teams
+
 
 def load_groups_from_csv(path, teams):
     team_dict = {t.name: t for t in teams}
@@ -270,21 +288,21 @@ def load_groups_from_csv(path, teams):
 
     return list(groups_dict.values())
 
+
 def run_simulation(groups):
     goals = defaultdict(int)
     champion = simulate_one_tournament(groups, goals)
     return champion.name, goals
 
+
 from multiprocessing import Pool, cpu_count
+
 
 def main():
     global GLOBAL_GROUPS
 
     total_goals = defaultdict(int)
-
     teams = load_teams_from_fifa_csv("fifa_ranking.csv")
-    print(f"Equipos cargados: {len(teams)}")
-
     groups = load_groups_from_csv("groups.csv", teams)
     GLOBAL_GROUPS = groups 
 
