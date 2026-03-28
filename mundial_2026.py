@@ -267,10 +267,12 @@ def load_groups_from_csv(path, teams):
 
     return list(groups_dict.values())
 
+
 def run_simulation(groups):
     return simulate_one_tournament(groups)
 
 from multiprocessing import Pool, cpu_count
+
 
 def main():
     global GLOBAL_GROUPS
@@ -302,7 +304,7 @@ def main():
         marker = "CLASIFICA" if i < 8 else " elimina"
         print(f"  {s.team.name:<20} {s.points:>4}  {s.goal_diff:>+4}  {s.goals_for:>4}   {marker}")
 
-    simulations = 100000
+    simulations = 10000
 
     print("\nEjecutando simulacion\n")
 
