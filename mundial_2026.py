@@ -343,8 +343,11 @@ def main():
         print(f"{team:<20} {g}")
 
     print("\nCampeones:\n")
-    for team, wins in sorted(winners.items(), key=lambda x: x[1], reverse=True):
-        print(f"{team:<20} {(wins/simulations)*100:>6.2f}%")
+    sorted_winners = sorted(winners.items(), key=lambda x: x[1], reverse=True)
+    
+    for team, counts in sorted_winners:
+        probability = (counts / simulations) * 100
+        print(f"{team:<20} {counts:>7} títulos    {probability:>6.2f}%")
 
     print("\nSubcampeones:\n")
     # Ordenamos por la cantidad de veces que quedaron en 2do lugar (el valor x[1])
