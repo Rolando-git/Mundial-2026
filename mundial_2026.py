@@ -52,7 +52,6 @@ def simulate_match(a: Team, b: Team, goals_dict=None) -> MatchResult:
 
     return MatchResult(goals_a, goals_b)
 
-
 def simulate_group(group: list, goals_dict=None):
     standings = [GroupStanding(t) for t in group]
 
@@ -77,18 +76,15 @@ def simulate_group(group: list, goals_dict=None):
     standings.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
     return standings
 
-
 def simulate_knockout_match(a: Team, b: Team, goals_dict=None) -> Team:
     res = simulate_match(a, b, goals_dict)
 
     if res.goals_a != res.goals_b:
         return a if res.goals_a > res.goals_b else b
-    # penales
+    #penales
     prob_a = a.strength / (a.strength + b.strength)
     return a if random.random() < prob_a else b
-    # Simulacion de Mejores Terceros
-   
-   
+#Simulacion de Mejores Terceros
 def get_best_third_places(groups: list, n: int = 8):
     third_places = []
 
@@ -100,59 +96,54 @@ def get_best_third_places(groups: list, n: int = 8):
 
     return [s.team for s in third_places[:n]]
 
-
-def simulate_one_tournament(groups, goals_dict=None):
-    group_tables = []
+def simulate_one_tournament(groups):
+    qualified = []
     third_places = []
 
-    # simular grupos
+    # Fase de grupos
     for g in groups:
-        table = simulate_group(g, goals_dict)
-        group_tables.append(table)
+        table = simulate_group(g)
+        qualified.append(table[0].team)
+        qualified.append(table[1].team)
         third_places.append(table[2])
 
-    # ordenar terceros
+    # Mejores terceros
     third_places.sort(key=lambda s: (-s.points, -s.goal_diff, -s.goals_for))
-    best_thirds = [t.team for t in third_places[:8]]
+    for i in range(8):
+        qualified.append(third_places[i].team)
 
-    round_of_32 = []
+    # Eliminatorias
+    current_round = qualified[:]
+    random.shuffle(current_round)
 
-    # cruces de grupos
-    pairs = [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9), (10, 11)]
+    semifinal_losers = []
 
-    for a, b in pairs:
-        groupA = group_tables[a]
-        groupB = group_tables[b]
-
-        round_of_32.append((groupA[0].team, groupB[1].team))
-        round_of_32.append((groupB[0].team, groupA[1].team))
-
-    # terceros entre si
-    for i in range(0, 8, 2):
-        round_of_32.append((best_thirds[i], best_thirds[i + 1]))
-
-    # jugar primera ronda
-    current_round = []
-    for a, b in round_of_32:
-        winner = simulate_knockout_match(a, b, goals_dict)
-        current_round.append(winner)
-
-    # siguientes rondas
-    while len(current_round) > 1:
+    while len(current_round) > 2:
         next_round = []
-
         for i in range(0, len(current_round), 2):
-            winner = simulate_knockout_match(
-                current_round[i],
-                current_round[i + 1],
-                goals_dict
-            )
+            a = current_round[i]
+            b = current_round[i + 1]
+            winner = simulate_knockout_match(a, b)
+            loser = b if winner == a else a
+
+            # Guardar perdedores de semifinal
+            if len(current_round) == 4:
+                semifinal_losers.append(loser)
+
             next_round.append(winner)
 
         current_round = next_round
 
-    return current_round[0]
+    # Final
+    a, b = current_round[0], current_round[1]
+    champion = simulate_knockout_match(a, b)
+    runner_up = b if champion == a else a
 
+    # Partido por 3er lugar
+    third_place = simulate_knockout_match(semifinal_losers[0], semifinal_losers[1])
+    fourth_place = semifinal_losers[1] if third_place == semifinal_losers[0] else semifinal_losers[0]
+
+    return champion.name, runner_up.name, third_place.name
 
 NAME_MAPPING = {
     "Argentina": "Argentina",
@@ -206,7 +197,6 @@ NAME_MAPPING = {
     "South Africa": "Sudáfrica", 
 }
 
-
 def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
     teams_dict = {}
     latest_date = None
@@ -255,18 +245,7 @@ def load_teams_from_fifa_csv(csv_path: str = "fifa_ranking.csv"):
 
         teams.append(Team(our_name, strength))
 
-    print(f"Equipos cargados desde CSV: {len(teams)}")
-
-    if len(teams) < 48:
-        print(f"⚠️  ADVERTENCIA: Solo se cargaron {len(teams)} equipos. Se esperaban 48.")
-    elif len(teams) > 48:
-        print(f"ℹ️  Se cargaron {len(teams)} equipos. Se usarán los primeros 48.")
-        teams = teams[:48]
-    else:
-        print("✅ Se cargaron correctamente los 48 equipos.")
-
     return teams
-
 
 def load_groups_from_csv(path, teams):
     team_dict = {t.name: t for t in teams}
@@ -288,21 +267,19 @@ def load_groups_from_csv(path, teams):
 
     return list(groups_dict.values())
 
-
 def run_simulation(groups):
-    goals = defaultdict(int)
-    champion = simulate_one_tournament(groups, goals)
-    return champion.name, goals
-
+    return simulate_one_tournament(groups)
 
 from multiprocessing import Pool, cpu_count
-
 
 def main():
     global GLOBAL_GROUPS
 
     total_goals = defaultdict(int)
+
     teams = load_teams_from_fifa_csv("fifa_ranking.csv")
+    print(f"Equipos cargados: {len(teams)}")
+
     groups = load_groups_from_csv("groups.csv", teams)
     GLOBAL_GROUPS = groups 
 
@@ -332,14 +309,15 @@ def main():
     with Pool(cpu_count()) as p:
         results = p.map(run_simulation, [groups] * simulations)
 
-    # contar resultados
     winners = {}
+    runners_up = {}
+    third_places = {}
 
-    for champion, goals in results:
-        winners[champion] = winners.get(champion, 0) + 1
-
-        for team, g in goals.items():
-            total_goals[team] += g
+    for champ, second, third in results:
+        winners[champ] = winners.get(champ, 0) + 1
+        runners_up[second] = runners_up.get(second, 0) + 1
+        third_places[third] = third_places.get(third, 0) + 1
+    # contar resultados
 
     print("\nResultados:\n")
 
@@ -363,6 +341,28 @@ def main():
 
     for team, g in sorted_goals[:20]:
         print(f"{team:<20} {g}")
+
+    print("\nCampeones:\n")
+    for team, wins in sorted(winners.items(), key=lambda x: x[1], reverse=True):
+        print(f"{team:<20} {(wins/simulations)*100:>6.2f}%")
+
+    print("\nSubcampeones:\n")
+    # Ordenamos por la cantidad de veces que quedaron en 2do lugar (el valor x[1])
+    sorted_runners_up = sorted(runners_up.items(), key=lambda x: x[1], reverse=True)
+    
+    for team, counts in sorted_runners_up:
+        probability = (counts / simulations) * 100
+        # Mostramos el nombre, la cantidad de veces y el porcentaje
+        print(f"{team:<20} {counts:>6} veces    {probability:>6.2f}%")
+
+    print("\nTercer lugar:\n")
+    # Ordenamos por la cantidad de veces que quedaron en 3er lugar
+    sorted_third_places = sorted(third_places.items(), key=lambda x: x[1], reverse=True)
+    
+    for team, counts in sorted_third_places:
+        probability = (counts / simulations) * 100
+        # Mostramos el nombre, la cantidad de veces y el porcentaje
+        print(f"{team:<20} {counts:>6} veces    {probability:>6.2f}%")
 
 
 if __name__ == "__main__":
